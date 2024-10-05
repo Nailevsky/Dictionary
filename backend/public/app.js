@@ -7,7 +7,7 @@ async function translateWord() {
     }
 
     try {
-        // Call the backend to get the translation from OpenAI API
+        // Call the backend to get multiple translation options
         const translationResponse = await fetch('/api/translate', {
             method: 'POST',
             headers: {
@@ -21,15 +21,63 @@ async function translateWord() {
         }
 
         const translationData = await translationResponse.json();
-        const translatedWord = translationData.translation;
+        const translationOptions = translationData.options;
 
-        // Display the translated word on the page
-        document.getElementById('result').innerText = `Translation: ${translatedWord}`;
+        // Log the options to verify they are correctly received
+        console.log("Translation options received from backend:", translationOptions);
 
-        // Update the saved words list
-        displaySavedWords();
+        // Display the translation options to the user
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '';  // Clear previous results
+
+        if (translationOptions.length > 0) {
+            const heading = document.createElement('p');
+            heading.innerText = 'Choose a translation:';
+            resultDiv.appendChild(heading);
+        }
+
+        translationOptions.forEach((option) => {
+            const optionButton = document.createElement('button');
+            optionButton.innerText = option;
+            optionButton.onclick = () => {
+                console.log(`User selected translation: ${option}`);
+                saveTranslation(word, option);
+            };
+            resultDiv.appendChild(optionButton);
+        });
     } catch (error) {
         console.error("Translation failed", error);
+    }
+}
+
+// Function to save the selected translation
+async function saveTranslation(word, translation) {
+    try {
+        // Normalize the word and translation before saving
+        word = word.trim().toLowerCase();
+        translation = translation.trim();
+
+        // Log what is being saved
+        console.log(`Saving word: ${word}, translation: ${translation}`);
+
+        // Call the backend to save the selected translation
+        const response = await fetch('/api/save-translation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ word, translation })
+        });
+
+        if (response.ok) {
+            console.log('Translation saved successfully');
+            // Update the saved words list
+            displaySavedWords();
+        } else {
+            console.error('Failed to save translation');
+        }
+    } catch (error) {
+        console.error("Error saving translation", error);
     }
 }
 

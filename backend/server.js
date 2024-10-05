@@ -40,17 +40,17 @@ app.post('/api/translate', async (req, res) => {
         const existingWord = await Word.findOne({ word });
         if (existingWord) {
             // If the word already exists, return the existing translation
-            return res.send({ translation: existingWord.translation });
+            return res.send({ options: [existingWord.translation] });
         }
 
-        // Use OpenAI API to get the translation if not found in the database
+        // Use OpenAI API to get multiple translations
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
             messages: [
-                { role: 'user', content: `Translate to Russian: ${word}` }
+                { role: 'user', content: `Переведи слово "${word}" дай только слова` }
             ],
-            max_tokens: 10,
-            temperature: 0.5
+            max_tokens: 100,
+            temperature: 0.7
         }, {
             headers: {
                 'Content-Type': 'application/json',
@@ -58,18 +58,39 @@ app.post('/api/translate', async (req, res) => {
             }
         });
 
-        // Extract the translated text
-        const translatedText = response.data.choices[0].message.content.trim();
+        // Extract the translated text options from the response
+        const translatedContent = response.data.choices[0].message.content.trim();
+        
+        // Assuming that OpenAI gives multiple translations separated by newlines or commas
+        const translatedTextOptions = translatedContent.split(/\n|,/).map(option => option.trim());
 
-        // Save the translated word to MongoDB for future reference
-        const newWord = new Word({ word, translation: translatedText });
-        await newWord.save();
+        // Log to verify the split operation
+        console.log("Translation options returned by OpenAI:", translatedTextOptions);
 
-        // Send the translated word back to the client
-        res.send({ translation: translatedText });
+        // Send the multiple translation options back to the client
+        res.send({ options: translatedTextOptions });
     } catch (error) {
         console.error('Error translating word:', error.response ? error.response.data : error.message);
         res.status(500).send({ error: 'Unable to translate word' });
+    }
+});
+
+// Save selected word and translation
+app.post('/api/save-translation', async (req, res) => {
+    try {
+        const { word, translation } = req.body;
+
+        // Normalize the word before saving
+        const normalizedWord = word.trim().toLowerCase();
+
+        // Save the translated word to MongoDB
+        const newWord = new Word({ word: normalizedWord, translation });
+        await newWord.save();
+
+        res.status(201).send({ message: 'Word saved successfully' });
+    } catch (error) {
+        console.error('Error saving word:', error.message);
+        res.status(500).send({ error: 'Unable to save word' });
     }
 });
 
